@@ -243,8 +243,6 @@ export const createAntigravityPlugin = (providerId: string) => async (
   auth: {
     provider: providerId,
     loader: async (getAuth: GetAuth, provider: Provider): Promise<LoaderResult | Record<string, unknown>> => {
-      // Track which account was used in the previous request for detecting switches
-      let previousAccountIndex: number | null = null;
       const auth = await getAuth();
       
       // If OpenCode has no valid OAuth auth, clear any stale account storage
@@ -334,10 +332,36 @@ export const createAntigravityPlugin = (providerId: string) => async (
           let lastFailure: FailureContext | null = null;
           let lastError: Error | null = null;
           const abortSignal = init?.signal ?? undefined;
+          
+          // Track which account was used in this request for detecting switches
+          // This is scoped to the fetch call so it resets per-request
+          let previousAccountIndex: number | null = null;
+
+          // Helper to check if request was aborted
+          const checkAborted = () => {
+            if (abortSignal?.aborted) {
+              throw abortSignal.reason instanceof Error ? abortSignal.reason : new Error("Aborted");
+            }
+          };
+
+          // Helper to show toast without blocking on abort
+          const showToast = async (message: string, variant: "info" | "warning" | "success" | "error") => {
+            if (abortSignal?.aborted) return;
+            try {
+              await client.tui.showToast({
+                body: { message, variant },
+              });
+            } catch {
+              // TUI may not be available
+            }
+          };
 
           // Use while(true) loop to handle rate limits with backoff
           // This ensures we wait and retry when all accounts are rate-limited
           while (true) {
+            // Check for abort at the start of each iteration
+            checkAborted();
+            
             const accountCount = accountManager.getAccountCount();
             
             if (accountCount === 0) {
@@ -351,16 +375,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
               const waitMs = accountManager.getMinWaitTimeMs() || 60_000;
               const waitSec = Math.max(1, Math.ceil(waitMs / 1000));
 
-              try {
-                await client.tui.showToast({
-                  body: {
-                    message: `All ${accountCount} account(s) rate-limited. Waiting ${waitSec}s...`,
-                    variant: "warning",
-                  },
-                });
-              } catch {
-                // TUI may not be available
-              }
+              await showToast(`All ${accountCount} account(s) rate-limited. Waiting ${waitSec}s...`, "warning");
 
               // Wait for the cooldown to expire
               await sleep(waitMs, abortSignal);
@@ -371,16 +386,10 @@ export const createAntigravityPlugin = (providerId: string) => async (
             const isAccountSwitch = previousAccountIndex !== null && previousAccountIndex !== account.index;
             if (isAccountSwitch || previousAccountIndex === null) {
               const accountLabel = account.email || `Account ${account.index + 1}`;
-              try {
-                await client.tui.showToast({
-                  body: {
-                    message: `Using ${accountLabel}${accountCount > 1 ? ` (${account.index + 1}/${accountCount})` : ""}`,
-                    variant: "info",
-                  },
-                });
-              } catch {
-                // TUI may not be available
-              }
+              await showToast(
+                `Using ${accountLabel}${accountCount > 1 ? ` (${account.index + 1}/${accountCount})` : ""}`,
+                "info"
+              );
             }
             previousAccountIndex = account.index;
 
@@ -515,16 +524,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   
                   if (accountManager.getAccountCount() > 1) {
                     // Multiple accounts - switch to next
-                    try {
-                      await client.tui.showToast({
-                        body: {
-                          message: `Rate limited on ${accountLabel}. Switching...`,
-                          variant: "warning",
-                        },
-                      });
-                    } catch {
-                      // TUI may not be available
-                    }
+                    await showToast(`Rate limited on ${accountLabel}. Switching...`, "warning");
                     
                     lastFailure = {
                       response,
@@ -543,16 +543,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   } else {
                     // Single account - wait and retry
                     const waitSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
-                    try {
-                      await client.tui.showToast({
-                        body: {
-                          message: `Rate limited. Waiting ${waitSec}s...`,
-                          variant: "warning",
-                        },
-                      });
-                    } catch {
-                      // TUI may not be available
-                    }
+                    await showToast(`Rate limited. Waiting ${waitSec}s...`, "warning");
                     
                     lastFailure = {
                       response,

@@ -68,6 +68,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 1048576,
             "output": 65535
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gemini-3-pro-low": {
@@ -75,6 +79,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 1048576,
             "output": 65535
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "claude-sonnet-4-5": {
@@ -82,6 +90,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 200000,
             "output": 64000
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "claude-sonnet-4-5-thinking": {
@@ -89,6 +101,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 200000,
             "output": 64000
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "claude-opus-4-5-thinking": {
@@ -96,6 +112,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 200000,
             "output": 64000
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gpt-oss-120b-medium": {
@@ -103,6 +123,10 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
           "limit": {
             "context": 131072,
             "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         }
       }
@@ -111,7 +135,7 @@ Open the **same config file** you created in Step 1 (`~/.config/opencode/opencod
 }
 ```
 
-> **Tip:** You only need to add the models you plan to use. The example above includes all available models, but you can remove any you don't need.
+> **Tip:** You only need to add the models you plan to use. The example above includes all available models, but you can remove any you don't need. The `modalities` field enables image and PDF support in the TUI.
 
 ### Step 4: Use a model
 
