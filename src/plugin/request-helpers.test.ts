@@ -18,6 +18,9 @@ import {
 describe("sanitizeThinkingPart (covered via filtering)", () => {
   it("extracts wrapped text and strips SDK fields for Gemini-style thought blocks", () => {
     const validSignature = "s".repeat(60);
+    const thinkingText = "wrapped thought";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
 
     const contents = [
       {
@@ -26,7 +29,7 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
           {
             thought: true,
             text: {
-              text: "wrapped thought",
+              text: thinkingText,
               cache_control: { type: "ephemeral" },
               providerOptions: { injected: true },
             },
@@ -38,21 +41,23 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
       },
     ];
 
-    const result = filterUnsignedThinkingBlocks(contents) as any;
+    const result = filterUnsignedThinkingBlocks(contents, "session-1", getCachedSignatureFn) as any;
     expect(result[0].parts).toHaveLength(1);
     expect(result[0].parts[0]).toEqual({
       thought: true,
-      text: "wrapped thought",
+      text: thinkingText,
       thoughtSignature: validSignature,
     });
 
-    // Ensure injected fields are removed
     expect(result[0].parts[0].cache_control).toBeUndefined();
     expect(result[0].parts[0].providerOptions).toBeUndefined();
   });
 
   it("extracts wrapped thinking text and strips SDK fields for Anthropic-style thinking blocks", () => {
     const validSignature = "a".repeat(60);
+    const thinkingText = "wrapped thinking";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
 
     const contents = [
       {
@@ -61,7 +66,7 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
           {
             type: "thinking",
             thinking: {
-              text: "wrapped thinking",
+              text: thinkingText,
               cache_control: { type: "ephemeral" },
               providerOptions: { injected: true },
             },
@@ -73,11 +78,11 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
       },
     ];
 
-    const result = filterUnsignedThinkingBlocks(contents) as any;
+    const result = filterUnsignedThinkingBlocks(contents, "session-1", getCachedSignatureFn) as any;
     expect(result[0].parts).toHaveLength(1);
     expect(result[0].parts[0]).toEqual({
       type: "thinking",
-      thinking: "wrapped thinking",
+      thinking: thinkingText,
       signature: validSignature,
     });
   });
@@ -114,6 +119,7 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
 
   it("falls back to recursive stripping for signed reasoning blocks and removes nested SDK fields", () => {
     const validSignature = "z".repeat(60);
+    const getCachedSignatureFn = (_sessionId: string, _text: string) => validSignature;
 
     const contents = [
       {
@@ -121,6 +127,7 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
         parts: [
           {
             type: "reasoning",
+            text: "reasoning text",
             signature: validSignature,
             cache_control: { type: "ephemeral" },
             providerOptions: { injected: true },
@@ -138,9 +145,10 @@ describe("sanitizeThinkingPart (covered via filtering)", () => {
       },
     ];
 
-    const result = filterUnsignedThinkingBlocks(contents) as any;
+    const result = filterUnsignedThinkingBlocks(contents, "session-1", getCachedSignatureFn) as any;
     expect(result[0].parts[0]).toEqual({
       type: "reasoning",
+      text: "reasoning text",
       signature: validSignature,
       meta: {
         keep: true,
@@ -318,20 +326,40 @@ describe("filterUnsignedThinkingBlocks", () => {
     expect(result[0].parts[0].type).toBe("text");
   });
 
-  it("keeps signed thinking parts with valid signatures", () => {
+  it("keeps signed thinking parts with valid signatures from our cache", () => {
     const validSignature = "a".repeat(60);
+    const thinkingText = "thinking with signature";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
+
     const contents = [
       {
         role: "model",
         parts: [
-          { type: "thinking", text: "thinking with signature", signature: validSignature },
+          { type: "thinking", text: thinkingText, signature: validSignature },
+          { type: "text", text: "visible text" },
+        ],
+      },
+    ];
+    const result = filterUnsignedThinkingBlocks(contents, "session-1", getCachedSignatureFn);
+    expect(result[0].parts).toHaveLength(2);
+    expect(result[0].parts[0].signature).toBe(validSignature);
+  });
+
+  it("strips thinking parts with foreign signatures not in our cache", () => {
+    const foreignSignature = "f".repeat(60);
+    const contents = [
+      {
+        role: "model",
+        parts: [
+          { type: "thinking", text: "foreign thinking", signature: foreignSignature },
           { type: "text", text: "visible text" },
         ],
       },
     ];
     const result = filterUnsignedThinkingBlocks(contents);
-    expect(result[0].parts).toHaveLength(2);
-    expect(result[0].parts[0].signature).toBe(validSignature);
+    expect(result[0].parts).toHaveLength(1);
+    expect(result[0].parts[0].type).toBe("text");
   });
 
   it("filters thinking parts with short signatures", () => {
@@ -349,18 +377,22 @@ describe("filterUnsignedThinkingBlocks", () => {
     expect(result[0].parts[0].type).toBe("text");
   });
 
-  it("handles Gemini-style thought parts with valid signatures", () => {
+  it("handles Gemini-style thought parts with valid signatures from our cache", () => {
     const validSignature = "b".repeat(55);
+    const thinkingText = "has signature";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
+
     const contents = [
       {
         role: "model",
         parts: [
           { thought: true, text: "no signature" },
-          { thought: true, text: "has signature", thoughtSignature: validSignature },
+          { thought: true, text: thinkingText, thoughtSignature: validSignature },
         ],
       },
     ];
-    const result = filterUnsignedThinkingBlocks(contents);
+    const result = filterUnsignedThinkingBlocks(contents, "session-1", getCachedSignatureFn);
     expect(result[0].parts).toHaveLength(1);
     expect(result[0].parts[0].thoughtSignature).toBe(validSignature);
   });
@@ -419,15 +451,19 @@ describe("filterMessagesThinkingBlocks", () => {
     expect(result[0].content[0].type).toBe("text");
   });
 
-  it("keeps signed thinking blocks with valid signatures and sanitizes injected fields", () => {
+  it("keeps signed thinking blocks with valid signatures from our cache and sanitizes injected fields", () => {
     const validSignature = "a".repeat(60);
+    const thinkingText = "wrapped";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
+
     const messages = [
       {
         role: "assistant",
         content: [
           {
             type: "thinking",
-            thinking: { text: "wrapped", cache_control: { type: "ephemeral" } },
+            thinking: { text: thinkingText, cache_control: { type: "ephemeral" } },
             signature: validSignature,
             cache_control: { type: "ephemeral" },
             providerOptions: { injected: true },
@@ -437,12 +473,33 @@ describe("filterMessagesThinkingBlocks", () => {
       },
     ];
 
-    const result = filterMessagesThinkingBlocks(messages) as any;
+    const result = filterMessagesThinkingBlocks(messages, "session-1", getCachedSignatureFn) as any;
     expect(result[0].content[0]).toEqual({
       type: "thinking",
-      thinking: "wrapped",
+      thinking: thinkingText,
       signature: validSignature,
     });
+  });
+
+  it("strips thinking blocks with foreign signatures not in our cache", () => {
+    const foreignSignature = "f".repeat(60);
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "foreign thinking",
+            signature: foreignSignature,
+          },
+          { type: "text", text: "visible" },
+        ],
+      },
+    ];
+
+    const result = filterMessagesThinkingBlocks(messages) as any;
+    expect(result[0].content).toHaveLength(1);
+    expect(result[0].content[0].type).toBe("text");
   });
 
   it("filters thinking blocks with short signatures", () => {
@@ -487,15 +544,19 @@ describe("filterMessagesThinkingBlocks", () => {
     });
   });
 
-  it("handles Gemini-style thought blocks inside messages content", () => {
+  it("handles Gemini-style thought blocks inside messages content with cached signatures", () => {
     const validSignature = "b".repeat(60);
+    const thinkingText = "wrapped thought";
+    const getCachedSignatureFn = (_sessionId: string, text: string) =>
+      text === thinkingText ? validSignature : undefined;
+
     const messages = [
       {
         role: "assistant",
         content: [
           {
             thought: true,
-            text: { text: "wrapped thought", cache_control: { type: "ephemeral" } },
+            text: { text: thinkingText, cache_control: { type: "ephemeral" } },
             thoughtSignature: validSignature,
             providerOptions: { injected: true },
           },
@@ -504,10 +565,10 @@ describe("filterMessagesThinkingBlocks", () => {
       },
     ];
 
-    const result = filterMessagesThinkingBlocks(messages) as any;
+    const result = filterMessagesThinkingBlocks(messages, "session-1", getCachedSignatureFn) as any;
     expect(result[0].content[0]).toEqual({
       thought: true,
-      text: "wrapped thought",
+      text: thinkingText,
       thoughtSignature: validSignature,
     });
   });
