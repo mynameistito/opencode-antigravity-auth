@@ -55,6 +55,11 @@
       "default": 300,
       "description": "Maximum time in seconds to wait when all accounts are rate-limited. If the minimum wait time exceeds this, fails fast with an error. Set to 0 to disable (wait indefinitely)."
     },
+    "quota_fallback": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable fallback to alternate quota when primary quota is rate limited."
+    },
     "signature_cache": {
       "type": "object",
       "properties": {

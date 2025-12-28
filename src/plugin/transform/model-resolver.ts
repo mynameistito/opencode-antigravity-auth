@@ -20,10 +20,10 @@ export const THINKING_TIER_BUDGETS = {
 
 /**
  * Gemini 3 uses thinkingLevel strings instead of numeric budgets.
- * Flash supports: minimal, low, medium, high
+ * Flash supports: low, medium, high
  * Pro supports: low, high
  */
-export const GEMINI_3_THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
+export const GEMINI_3_THINKING_LEVELS = ["low", "medium", "high"] as const;
 
 /**
  * Model aliases - maps user-friendly names to API model names.
@@ -38,7 +38,6 @@ export const MODEL_ALIASES: Record<string, string> = {
   // For Antigravity, these are bypassed and full model name is kept
   "gemini-3-pro-low": "gemini-3-pro",
   "gemini-3-pro-high": "gemini-3-pro",
-  "gemini-3-flash-minimal": "gemini-3-flash",
   "gemini-3-flash-low": "gemini-3-flash",
   "gemini-3-flash-medium": "gemini-3-flash",
   "gemini-3-flash-high": "gemini-3-flash",
