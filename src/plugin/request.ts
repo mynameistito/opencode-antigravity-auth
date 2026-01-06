@@ -66,18 +66,9 @@ const log = createLogger("request");
 
 const PLUGIN_SESSION_ID = `-${crypto.randomUUID()}`;
 
+const sessionDisplayedThinkingHashes = new Set<string>();
+
 const MIN_SIGNATURE_LENGTH = 50;
-
-const displayedThinkingHashesBySession = new Map<string, Set<string>>();
-
-function getDisplayedThinkingHashes(sessionKey: string): Set<string> {
-  let hashes = displayedThinkingHashesBySession.get(sessionKey);
-  if (!hashes) {
-    hashes = new Set<string>();
-    displayedThinkingHashesBySession.set(sessionKey, hashes);
-  }
-  return hashes;
-}
 
 function buildSignatureSessionKey(
   sessionId: string,
@@ -1054,8 +1045,26 @@ export function prepareAntigravityRequest(
             }
             requestPayload.tools = finalTools.concat(passthroughTools);
           } else {
-            // Default normalization for non-Claude models
-            requestPayload.tools = requestPayload.tools.map((tool: any, toolIndex: number) => {
+            // Default normalization for non-Claude models (Gemini)
+            // First, flatten any functionDeclarations format into individual tools
+            const flattenedTools: any[] = [];
+            requestPayload.tools.forEach((tool: any) => {
+              if (Array.isArray(tool.functionDeclarations) && tool.functionDeclarations.length > 0) {
+                // Flatten functionDeclarations into individual tool entries
+                tool.functionDeclarations.forEach((decl: any) => {
+                  flattenedTools.push({
+                    name: decl.name,
+                    description: decl.description,
+                    // Convert parameters to input_schema for Gemini format
+                    input_schema: decl.parameters || decl.parametersJsonSchema || decl.input_schema || decl.inputSchema,
+                  });
+                });
+              } else {
+                flattenedTools.push(tool);
+              }
+            });
+
+            requestPayload.tools = flattenedTools.map((tool: any, toolIndex: number) => {
               const newTool = { ...tool };
 
               const schemaCandidates = [
@@ -1064,8 +1073,8 @@ export function prepareAntigravityRequest(
                 newTool.function?.inputSchema,
                 newTool.custom?.input_schema,
                 newTool.custom?.parameters,
-                newTool.parameters,
                 newTool.input_schema,
+                newTool.parameters,
                 newTool.inputSchema,
               ].filter(Boolean);
 
@@ -1127,13 +1136,17 @@ export function prepareAntigravityRequest(
                 `idx=${toolIndex}, hasCustom=${!!newTool.custom}, customSchema=${!!newTool.custom?.input_schema}, hasFunction=${!!newTool.function}, functionSchema=${!!newTool.function?.input_schema}`,
               );
 
-              // Strip custom wrappers for Gemini; only function-style is accepted.
-              if (newTool.custom) {
-                delete newTool.custom;
-              }
-
               return newTool;
             });
+
+            // Gemini 3 API requires: [{functionDeclarations: [{name, description, parameters}, ...]}]
+            const normalizedTools = requestPayload.tools as any[];
+            const geminiDeclarations = normalizedTools.map((tool: any) => ({
+              name: tool.name || tool.function?.name,
+              description: tool.description || tool.function?.description,
+              parameters: tool.parameters || tool.input_schema || tool.function?.parameters || tool.function?.input_schema,
+            }));
+            requestPayload.tools = [{ functionDeclarations: geminiDeclarations }];
           }
 
           try {
@@ -1484,7 +1497,7 @@ export async function transformAntigravityResponse(
         signatureSessionKey: sessionId,
         debugText,
         cacheSignatures,
-        displayedThinkingHashes: sessionId ? getDisplayedThinkingHashes(sessionId) : undefined,
+        displayedThinkingHashes: sessionDisplayedThinkingHashes,
       },
     );
     return new Response(response.body.pipeThrough(streamingTransformer), {

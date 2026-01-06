@@ -3,32 +3,32 @@ import { resolveModelWithTier, resolveModelWithVariant } from "./model-resolver"
 
 describe("resolveModelWithTier", () => {
   describe("Gemini 3 flash models (Issue #109)", () => {
-    it("antigravity-gemini-3-flash gets default thinkingLevel (high per Google docs)", () => {
+    it("antigravity-gemini-3-flash gets default thinkingLevel 'low'", () => {
       const result = resolveModelWithTier("antigravity-gemini-3-flash");
-      expect(result.actualModel).toBe("gemini-3-flash");
-      expect(result.thinkingLevel).toBe("high");
+      expect(result.actualModel).toBe("gemini-3-flash-low");
+      expect(result.thinkingLevel).toBe("low");
       expect(result.quotaPreference).toBe("antigravity");
     });
 
-    it("gemini-3-flash gets default thinkingLevel (high per Google docs)", () => {
+    it("gemini-3-flash gets default thinkingLevel 'low'", () => {
       const result = resolveModelWithTier("gemini-3-flash");
       expect(result.actualModel).toBe("gemini-3-flash");
-      expect(result.thinkingLevel).toBe("high");
+      expect(result.thinkingLevel).toBe("low");
     });
 
-    it("gemini-3-flash-preview gets default thinkingLevel (high per Google docs)", () => {
+    it("gemini-3-flash-preview gets default thinkingLevel 'low'", () => {
       const result = resolveModelWithTier("gemini-3-flash-preview");
       expect(result.actualModel).toBe("gemini-3-flash-preview");
-      expect(result.thinkingLevel).toBe("high");
+      expect(result.thinkingLevel).toBe("low");
       expect(result.quotaPreference).toBe("gemini-cli");
     });
   });
 
   describe("Gemini 3 preview models (Issue #115)", () => {
-    it("gemini-3-pro-preview gets default thinkingLevel (high per Google docs)", () => {
+    it("gemini-3-pro-preview gets default thinkingLevel 'low'", () => {
       const result = resolveModelWithTier("gemini-3-pro-preview");
       expect(result.actualModel).toBe("gemini-3-pro-preview");
-      expect(result.thinkingLevel).toBe("high");
+      expect(result.thinkingLevel).toBe("low");
       expect(result.quotaPreference).toBe("gemini-cli");
     });
   });
@@ -105,7 +105,7 @@ describe("resolveModelWithVariant", () => {
       const result = resolveModelWithVariant("antigravity-gemini-3-pro", {
         thinkingBudget: 8000,
       });
-      expect(result.actualModel).toBe("gemini-3-pro");
+      expect(result.actualModel).toBe("gemini-3-pro-low");
       expect(result.thinkingLevel).toBe("low");
       expect(result.thinkingBudget).toBeUndefined();
       expect(result.configSource).toBe("variant");

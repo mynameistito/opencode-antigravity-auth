@@ -181,8 +181,14 @@ export function resolveModelWithTier(requestedModel: string): ResolvedModel {
   const isGemini3 = modelWithoutQuota.toLowerCase().startsWith("gemini-3");
   const skipAlias = isAntigravity && isGemini3;
 
+  // For Antigravity Gemini 3 models without explicit tier, append default tier (-high)
+  // Antigravity only has gemini-3-pro-high/low, not bare gemini-3-pro
+  const antigravityModel = skipAlias && !tier
+    ? `${modelWithoutQuota}-low`
+    : modelWithoutQuota;
+
   const actualModel = skipAlias
-    ? modelWithoutQuota
+    ? antigravityModel
     : MODEL_ALIASES[modelWithoutQuota] || MODEL_ALIASES[baseName] || baseName;
 
   const resolvedModel = MODEL_FALLBACKS[actualModel] || actualModel;
@@ -195,11 +201,10 @@ export function resolveModelWithTier(requestedModel: string): ResolvedModel {
   if (!tier) {
     // Gemini 3 models without explicit tier get a default thinkingLevel
     if (isEffectiveGemini3) {
-      // Both Pro and Flash default to "high" per Google's API docs:
-      // "This is the default level for Gemini 3 Pro and Gemini 3 Flash"
+      // Both Pro and Flash default to "low" per Google's API docs
       return {
         actualModel: resolvedModel,
-        thinkingLevel: "high",
+        thinkingLevel: "low",
         isThinkingModel: true,
         quotaPreference,
         explicitQuota,
@@ -294,9 +299,20 @@ export function resolveModelWithVariant(
   const isGemini3 = base.actualModel.toLowerCase().includes("gemini-3");
 
   if (isGemini3) {
+    const level = budgetToGemini3Level(budget);
+    const isAntigravityGemini3 = base.quotaPreference === "antigravity" &&
+      base.actualModel.toLowerCase().startsWith("gemini-3");
+
+    let actualModel = base.actualModel;
+    if (isAntigravityGemini3) {
+      const baseModel = base.actualModel.replace(/-(low|medium|high)$/, "");
+      actualModel = `${baseModel}-${level}`;
+    }
+
     return {
       ...base,
-      thinkingLevel: budgetToGemini3Level(budget),
+      actualModel,
+      thinkingLevel: level,
       thinkingBudget: undefined,
       configSource: "variant",
     };
