@@ -321,9 +321,9 @@ export const DEFAULT_CONFIG: AntigravityConfig = {
   max_rate_limit_wait_seconds: 300,
   quota_fallback: false,
   account_selection_strategy: 'hybrid',
-pid_offset_enabled: false,
-   switch_on_first_rate_limit: true,
-   auto_update: true,
+  pid_offset_enabled: false,
+  switch_on_first_rate_limit: true,
+  auto_update: true,
   signature_cache: {
     enabled: true,
     memory_ttl_seconds: 3600,
