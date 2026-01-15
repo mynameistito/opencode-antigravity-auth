@@ -525,16 +525,38 @@ const CAPACITY_STATE_RESET_MS = 120_000; // Reset after 2 minutes without capaci
 const capacityCooldownByKey = new Map<string, number>();
 const capacityFailureStateByKey = new Map<string, { consecutiveFailures: number; lastAt: number }>();
 
+/**
+ * Generate a unique key for tracking capacity state.
+ * 
+ * @param family - Model family (claude or gemini)
+ * @param model - Specific model name (optional)
+ * @returns Unique key combining family and model
+ */
 function getCapacityKey(family: ModelFamily, model?: string | null): string {
   return `${family}:${model ?? "default"}`;
 }
 
+/**
+ * Get remaining cooldown time for capacity exhaustion.
+ * 
+ * @param family - Model family (claude or gemini)
+ * @param model - Specific model name (optional)
+ * @returns Remaining cooldown in milliseconds (0 if not cooling down)
+ */
 function getCapacityCooldownRemainingMs(family: ModelFamily, model?: string | null): number {
   const key = getCapacityKey(family, model);
   const until = capacityCooldownByKey.get(key) ?? 0;
   return Math.max(0, until - Date.now());
 }
 
+/**
+ * Set or extend cooldown for capacity exhaustion.
+ * Side effect: updates capacityCooldownByKey.
+ * 
+ * @param family - Model family (claude or gemini)
+ * @param model - Specific model name (optional)
+ * @param delayMs - Cooldown duration in milliseconds
+ */
 function markCapacityCooldown(family: ModelFamily, model: string | null | undefined, delayMs: number): void {
   const key = getCapacityKey(family, model);
   const nextUntil = Date.now() + delayMs;
@@ -542,14 +564,33 @@ function markCapacityCooldown(family: ModelFamily, model: string | null | undefi
   capacityCooldownByKey.set(key, Math.max(currentUntil, nextUntil));
 }
 
-function getCapacityBackoffForKey(family: ModelFamily, model?: string | null): { delayMs: number; attempt: number } {
+/**
+ * Calculate capacity backoff delay based on consecutive failures count.
+ * Pure function without side effects.
+ * 
+ * @param failures - Number of consecutive failures
+ * @returns Delay in milliseconds
+ */
+function calculateCapacityBackoffDelay(failures: number): number {
+  return getCapacityBackoffDelay(failures);
+}
+
+/**
+ * Record capacity failure and return backoff delay and attempt count.
+ * Side effect: updates capacityFailureStateByKey.
+ * 
+ * @param family - Model family (claude or gemini)
+ * @param model - Specific model name (optional)
+ * @returns { delayMs, attempt } - Backoff delay in ms and attempt number
+ */
+function recordAndGetCapacityBackoff(family: ModelFamily, model?: string | null): { delayMs: number; attempt: number } {
   const key = getCapacityKey(family, model);
   const now = Date.now();
   const previous = capacityFailureStateByKey.get(key);
   const failures = previous && (now - previous.lastAt < CAPACITY_STATE_RESET_MS)
     ? previous.consecutiveFailures
     : 0;
-  const delayMs = getCapacityBackoffDelay(failures);
+  const delayMs = calculateCapacityBackoffDelay(failures);
   capacityFailureStateByKey.set(key, { consecutiveFailures: failures + 1, lastAt: now });
   return { delayMs, attempt: failures + 1 };
 }
@@ -1288,7 +1329,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   await logResponseBody(debugContext, response, 429);
 
                   if (isCapacityExhausted) {
-                    const { delayMs: capacityBackoffMs, attempt } = getCapacityBackoffForKey(family, model);
+                    const { delayMs: capacityBackoffMs, attempt } = recordAndGetCapacityBackoff(family, model);
                     markCapacityCooldown(family, model, capacityBackoffMs);
 
                     const backoffFormatted = formatWaitTime(capacityBackoffMs);
@@ -1301,7 +1342,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                       );
                     }
                     await sleep(capacityBackoffMs, abortSignal);
-                    continue;
+                    break;
                   }
                   
                   const accountLabel = account.email || `Account ${account.index + 1}`;
