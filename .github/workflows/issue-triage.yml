@@ -204,7 +204,7 @@ jobs:
           echo "Running Opencode Triage on Pi..."
           
           # Run CLI with persistent auth
-          OUTPUT=$(opencode run "$PROMPT" --model="google/antigravity-gemini-3-pro" --variant=high --quiet)
+          OUTPUT=$(opencode run "$PROMPT")
           
           echo "Opencode Output: $OUTPUT"
           
