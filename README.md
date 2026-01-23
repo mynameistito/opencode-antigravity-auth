@@ -348,12 +348,12 @@ Invalid JSON payload received. Unknown name "parameters" at 'request.tools[0]'
 Some MCP servers have schemas incompatible with Antigravity's strict JSON format.
 
 **Common symptom:**
-```
+```bash
 Invalid function name must start with a letter or underscore
 ```
 
 Sometimes it shows up as:
-```
+```bash
 GenerateContentRequest.tools[0].function_declarations[12].name: Invalid function name must start with a letter or underscore
 ```
 
